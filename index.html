@@ -111,7 +111,7 @@
             <h1 className="text-2xl font-bold">Web ADIF 日志查看 / 编辑器（静态版）</h1>
 
             <div className="flex gap-2">
-              <input ref={fileRef} type="file" accept=".adi,.txt" onChange={handleFile} className="hidden" />
+              <input ref={fileRef} type="file" accept=".adi,.txt,application/octet-stream,text/plain" onChange={handleFile} className="hidden" />
               <button className="px-3 py-2 bg-slate-800 text-white rounded" onClick={() => fileRef.current.click()}>导入 ADIF</button>
               <button className="px-3 py-2 border rounded" onClick={addEmpty}>新增 QSO</button>
               <button className="px-3 py-2 bg-green-600 text-white rounded" onClick={exportAdif}>导出 ADIF</button>
