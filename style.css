@@ -1,0 +1,42 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+}
+
+.box {
+    padding: 15px;
+    margin-bottom: 20px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th {
+    cursor: pointer;
+    background: #eee;
+}
+
+td, th {
+    padding: 6px;
+    border: 1px solid #999;
+}
+
+.green {
+    background-color: #ccffcc !important;
+}
+
+.red {
+    background-color: #ffcccc !important;
+}
+
+.editing {
+    background: #fff7d1 !important;
+}
+
+input, select, button {
+    padding: 5px 8px;
+}
