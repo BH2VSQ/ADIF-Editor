@@ -1,2 +1,2 @@
 # ADIF-Editor
-A website due to edit adif log online
+A website for editing adif log online
