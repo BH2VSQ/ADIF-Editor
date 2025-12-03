@@ -1,63 +1,604 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<title>ADIF 日志查看器（可编辑 + QRZ 校验）</title>
-<link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ADIF 日志编辑器</title>
+    <!-- 引入 Tailwind CSS 进行样式美化 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Phosphor Icons 图标库 -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        /* 自定义简单的加载动画 */
+        .spinner {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
 </head>
-<body>
+<body class="bg-gray-50 text-gray-900 min-h-screen font-sans">
 
-<h1>ADIF 日志查看器（编辑 + QRZ 校验）</h1>
+    <!-- 导航栏 -->
+    <nav class="bg-blue-700 text-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <i class="ph ph-radio text-2xl"></i>
+                <span class="font-bold text-xl tracking-tight">ADIF Editor</span>
+            </div>
+            
+            <div class="flex items-center space-x-4">
+                <div id="login-status-container">
+                    <button onclick="openSettings()" class="flex items-center space-x-1 text-sm bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded transition">
+                        <span>未登录 QRZ</span>
+                    </button>
+                </div>
+                <button onclick="openSettings()" class="p-2 hover:bg-blue-600 rounded-full transition">
+                    <i class="ph ph-gear text-xl"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
 
-<!-- ADIF 导入 -->
-<div class="box">
-    <h3>1. 导入 ADIF 文件</h3>
-    <input type="file" id="adifFile" accept=".adi,.adif,application/octet-stream,text/plain">
-    <button id="exportAdif">导出 ADIF</button>
-</div>
+    <!-- 主内容区 -->
+    <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+        
+        <!-- 工具栏 -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-wrap gap-4 items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <label class="flex items-center space-x-2 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 px-4 py-2 rounded-lg cursor-pointer transition">
+                    <i class="ph ph-upload-simple"></i>
+                    <span class="font-medium">导入 ADIF</span>
+                    <input type="file" id="file-input" accept=".adi,.adif" class="hidden" onchange="handleFileUpload(this)">
+                </label>
+                
+                <button id="btn-export" onclick="exportAdif()" class="hidden flex items-center space-x-2 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 px-4 py-2 rounded-lg transition">
+                    <i class="ph ph-file-arrow-up"></i>
+                    <span class="font-medium">导出 ADIF</span>
+                </button>
+            </div>
 
-<!-- QRZ 登录 -->
-<div class="box">
-    <h3>2. QRZ 登录</h3>
-    <input id="qrzUser" placeholder="QRZ 用户名">
-    <input id="qrzPass" type="password" placeholder="QRZ 密码">
-    <button id="loginQRZ">登录 QRZ 服务</button>
-    <span id="qrzStatus"></span>
-</div>
+            <div class="flex items-center space-x-3">
+                <button id="btn-check-all" onclick="checkAll()" class="hidden flex items-center space-x-2 bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 rounded-lg shadow-md transition">
+                    <i class="ph ph-magnifying-glass"></i>
+                    <span>批量检查全部</span>
+                </button>
+                <div class="text-sm text-gray-500">
+                    记录数: <span id="record-count" class="font-bold text-gray-900">0</span>
+                </div>
+            </div>
+        </div>
 
-<!-- 搜索与过滤 -->
-<div class="box">
-    <h3>3. 搜索和过滤</h3>
-    搜索：<input id="searchBox" placeholder="Call / Mode / Band / 日期">
-    &nbsp;&nbsp;
-    Band：
-    <select id="bandFilter">
-        <option value="">全部</option>
-    </select>
-    Mode：
-    <select id="modeFilter">
-        <option value="">全部</option>
-    </select>
-</div>
+        <!-- 数据表格 -->
+        <div id="empty-state" class="text-center py-20 bg-white rounded-xl border border-dashed border-gray-300">
+            <i class="ph ph-radio text-6xl text-gray-300 mb-4 inline-block"></i>
+            <h3 class="text-xl font-medium text-gray-600">暂无日志数据</h3>
+            <p class="text-gray-500 mt-2">请点击左上角按钮导入 .adi 文件</p>
+        </div>
 
-<!-- ADIF 表格 -->
-<div class="box">
-    <h3>4. ADIF 日志（双击可编辑）</h3>
-    <table id="logTable">
-        <thead>
-            <tr>
-                <th data-field="call">CALL ▲▼</th>
-                <th data-field="band">BAND ▲▼</th>
-                <th data-field="mode">MODE ▲▼</th>
-                <th data-field="qso_date">DATE ▲▼</th>
-                <th data-field="time_on">TIME ▲▼</th>
-                <th>RAW</th>
-            </tr>
-        </thead>
-        <tbody id="logTableBody"></tbody>
-    </table>
-</div>
+        <div id="table-container" class="hidden bg-white rounded-xl shadow-sm overflow-hidden border border-gray-200">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm whitespace-nowrap">
+                    <thead class="bg-gray-100 text-gray-600 border-b border-gray-200">
+                        <tr>
+                            <th class="px-4 py-3 font-semibold text-center w-16">状态</th>
+                            <th class="px-4 py-3 font-semibold">呼号 (CALL)</th>
+                            <th class="px-4 py-3 font-semibold">日期 (QSO_DATE)</th>
+                            <th class="px-4 py-3 font-semibold">时间 (TIME_ON)</th>
+                            <th class="px-4 py-3 font-semibold">波段 (BAND)</th>
+                            <th class="px-4 py-3 font-semibold">模式 (MODE)</th>
+                            <th class="px-4 py-3 font-semibold">QRZ 信息</th>
+                            <th class="px-4 py-3 font-semibold text-right">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="log-table-body" class="divide-y divide-gray-100">
+                        <!-- 行数据将通过 JS 插入 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
 
-<script src="app.js"></script>
+    <!-- 设置模态框 -->
+    <div id="modal-settings" class="hidden fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in">
+            <div class="p-6">
+                <h2 class="text-xl font-bold mb-4 flex items-center">
+                    <i class="ph ph-gear mr-2"></i> 设置与登录
+                </h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">QRZ 用户名</label>
+                        <input type="text" id="input-qrz-user" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">QRZ 密码</label>
+                        <input type="password" id="input-qrz-pass" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <!-- CORS 代理输入框已移除 -->
+                    <div class="pt-2">
+                        <button onclick="handleLogin()" id="btn-login" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 flex justify-center items-center">
+                            登录 QRZ
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-gray-50 px-6 py-4 flex justify-end">
+                <button onclick="closeSettings()" class="text-gray-600 hover:text-gray-900">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 编辑模态框 -->
+    <div id="modal-edit" class="hidden fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl h-[80vh] flex flex-col">
+            <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+                <h2 class="text-xl font-bold">编辑记录</h2>
+                <button onclick="closeEdit()" class="text-gray-400 hover:text-red-500"><i class="ph ph-x-circle text-2xl"></i></button>
+            </div>
+            <div id="edit-form-container" class="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-2 gap-4 content-start">
+                <!-- 动态生成表单项 -->
+            </div>
+            <!-- 添加新字段区域 -->
+            <div class="px-6 pb-2">
+                <div class="border-t border-dashed pt-4">
+                    <p class="text-xs text-gray-400 mb-2">添加新字段 (如: COMMENT)</p>
+                    <div class="flex gap-2">
+                        <input id="new-field-key" placeholder="TAG" class="w-1/3 px-3 py-2 border rounded text-sm uppercase">
+                        <input id="new-field-val" placeholder="VALUE" class="flex-1 px-3 py-2 border rounded text-sm">
+                        <button onclick="addNewField()" class="bg-gray-200 hover:bg-gray-300 px-4 rounded text-sm font-bold">+</button>
+                    </div>
+                </div>
+            </div>
+            <div class="p-6 border-t border-gray-200 bg-gray-50 flex justify-end gap-3">
+                <button onclick="closeEdit()" class="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg transition">取消</button>
+                <button onclick="saveEdit()" class="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg shadow transition flex items-center">
+                    <i class="ph ph-floppy-disk mr-2"></i> 保存更改
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript 逻辑 -->
+    <script>
+        // --- 全局状态 ---
+        const state = {
+            adifHeader: '',
+            records: [], // 存储每条日志的对象
+            filename: 'log.adi',
+            sessionKey: null,
+            editingIndex: -1,
+            qrzUser: '',
+            qrzPass: '',
+            // corsProxy 已移除
+        };
+
+        // --- 初始化 ---
+        window.onload = () => {
+            loadSettings();
+            renderUI();
+        };
+
+        function loadSettings() {
+            const saved = localStorage.getItem('adif_js_settings');
+            if (saved) {
+                const data = JSON.parse(saved);
+                state.qrzUser = data.qrzUser || '';
+                state.qrzPass = data.qrzPass || '';
+                
+                // 填充设置框
+                document.getElementById('input-qrz-user').value = state.qrzUser;
+                document.getElementById('input-qrz-pass').value = state.qrzPass;
+            }
+        }
+
+        function saveSettings() {
+            const data = {
+                qrzUser: document.getElementById('input-qrz-user').value,
+                qrzPass: document.getElementById('input-qrz-pass').value,
+                // corsProxy 已移除
+            };
+            state.qrzUser = data.qrzUser;
+            state.qrzPass = data.qrzPass;
+            localStorage.setItem('adif_js_settings', JSON.stringify(data));
+        }
+
+        // --- ADIF 解析核心逻辑 ---
+        function handleFileUpload(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            state.filename = file.name;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const content = e.target.result;
+                parseAdif(content);
+                renderTable();
+                updateToolbar();
+            };
+            reader.readAsText(file);
+        }
+
+        function parseAdif(content) {
+            // 1. 分离头部 (Header)
+            const eohIndex = content.toUpperCase().indexOf('<EOH>');
+            let body = content;
+
+            if (eohIndex !== -1) {
+                state.adifHeader = content.substring(0, eohIndex + 5);
+                body = content.substring(eohIndex + 5);
+            } else {
+                state.adifHeader = ''; // 无头部或非标准
+            }
+
+            // 2. 分割记录 (Records)
+            // ADIF 使用 <EOR> 或 <eor> 结尾
+            const rawRecords = body.split(/<EOR>/i);
+            const parsedRecords = [];
+
+            const tagRegex = /<([A-Z0-9_]+):(\d+)(?::[A-Z])?>/gi;
+
+            rawRecords.forEach((rawRec, idx) => {
+                if (!rawRec.trim()) return;
+
+                const recordObj = { 
+                    _status: 'unknown', // unknown, valid, invalid, checking
+                    _qrzName: '' 
+                };
+                
+                let match;
+                while ((match = tagRegex.exec(rawRec)) !== null) {
+                    const tagName = match[1].toLowerCase(); // 统一转小写存储键名
+                    const dataLen = parseInt(match[2], 10);
+                    const valueStart = match.index + match[0].length;
+                    const value = rawRec.substr(valueStart, dataLen);
+                    
+                    recordObj[tagName] = value;
+                }
+
+                if (Object.keys(recordObj).length > 2) {
+                    parsedRecords.push(recordObj);
+                }
+            });
+
+            state.records = parsedRecords;
+            document.getElementById('record-count').innerText = state.records.length;
+        }
+
+        // --- 渲染逻辑 ---
+        function renderTable() {
+            const tbody = document.getElementById('log-table-body');
+            const tableContainer = document.getElementById('table-container');
+            const emptyState = document.getElementById('empty-state');
+
+            if (state.records.length === 0) {
+                tableContainer.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            tableContainer.classList.remove('hidden');
+            emptyState.classList.add('hidden');
+            tbody.innerHTML = '';
+
+            state.records.forEach((rec, idx) => {
+                const tr = document.createElement('tr');
+                tr.id = `row-${idx}`;
+                tr.className = getRowClass(rec._status);
+
+                // 准备数据
+                const call = rec.call || rec.call_sign || '---';
+                const date = rec.qso_date || '---';
+                const time = rec.time_on || '---';
+                const band = rec.band || '---';
+                const mode = rec.mode || '---';
+                const qrzInfo = rec._qrzName || '-';
+
+                tr.innerHTML = `
+                    <td class="px-4 py-3 text-center">
+                        ${getStatusIcon(rec._status)}
+                    </td>
+                    <td class="px-4 py-3 font-mono font-bold">${call.toUpperCase()}</td>
+                    <td class="px-4 py-3">${date}</td>
+                    <td class="px-4 py-3">${time}</td>
+                    <td class="px-4 py-3">${band}</td>
+                    <td class="px-4 py-3">${mode}</td>
+                    <td class="px-4 py-3 text-gray-500 italic truncate max-w-[150px]" id="info-${idx}">${qrzInfo}</td>
+                    <td class="px-4 py-3 text-right">
+                        <div class="flex justify-end space-x-2">
+                            <button onclick="checkOne(${idx})" class="p-1.5 text-blue-600 hover:bg-blue-100 rounded" title="查询">
+                                <i class="ph ph-magnifying-glass"></i>
+                            </button>
+                            <button onclick="openEdit(${idx})" class="p-1.5 text-gray-600 hover:bg-gray-100 rounded" title="编辑">
+                                <i class="ph ph-pencil-simple"></i>
+                            </button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function getRowClass(status) {
+            const base = "transition-colors duration-150 border-l-4 ";
+            if (status === 'valid') return base + "bg-green-50 hover:bg-green-100 border-green-500";
+            if (status === 'invalid') return base + "bg-red-50 hover:bg-red-100 border-red-500";
+            if (status === 'checking') return base + "bg-yellow-50 border-yellow-400";
+            return base + "hover:bg-gray-50 border-transparent";
+        }
+
+        function getStatusIcon(status) {
+            if (status === 'valid') return '<i class="ph ph-check-circle text-xl text-green-600"></i>';
+            if (status === 'invalid') return '<i class="ph ph-x-circle text-xl text-red-500"></i>';
+            if (status === 'checking') return '<i class="ph ph-spinner spinner text-xl text-blue-500"></i>';
+            return '<div class="w-2 h-2 bg-gray-300 rounded-full mx-auto"></div>';
+        }
+
+        function updateRowStatus(idx) {
+            const row = document.getElementById(`row-${idx}`);
+            if (!row) return;
+            
+            const rec = state.records[idx];
+            row.className = getRowClass(rec._status);
+            
+            // 更新图标列
+            row.cells[0].innerHTML = getStatusIcon(rec._status);
+            // 更新信息列
+            row.cells[6].innerText = rec._qrzName || '-';
+        }
+
+        function updateToolbar() {
+            const hasRecords = state.records.length > 0;
+            const isLoggedIn = !!state.sessionKey;
+
+            const btnExport = document.getElementById('btn-export');
+            const btnCheckAll = document.getElementById('btn-check-all');
+
+            if (hasRecords) btnExport.classList.remove('hidden'); else btnExport.classList.add('hidden');
+            if (hasRecords && isLoggedIn) btnCheckAll.classList.remove('hidden'); else btnCheckAll.classList.add('hidden');
+        }
+
+        // --- QRZ API 逻辑 ---
+        async function handleLogin() {
+            saveSettings();
+            const btn = document.getElementById('btn-login');
+            const originalText = btn.innerText;
+            btn.innerHTML = '<i class="ph ph-spinner spinner mr-2"></i> 登录中...';
+            btn.disabled = true;
+
+            const qrzUrl = `https://xmldata.qrz.com/xml/current/?username=${encodeURIComponent(state.qrzUser)};password=${encodeURIComponent(state.qrzPass)}`;
+            
+            // 注意: 已移除 CORS 代理。此直接调用在标准浏览器环境中可能因跨域 (CORS) 策略而失败。
+            try {
+                const res = await fetch(qrzUrl);
+                const text = await res.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(text, "text/xml");
+                
+                const key = doc.querySelector('Key')?.textContent;
+                const error = doc.querySelector('Error')?.textContent;
+
+                if (key) {
+                    state.sessionKey = key;
+                    closeSettings();
+                    renderLoginStatus(true);
+                    updateToolbar();
+                } else {
+                    // 如果响应不是 XML (例如 CORS 错误)，可能会导致 key/error 为空
+                    if (!key && !error) {
+                         alert("登录失败: 尝试直接连接 QRZ.com 失败。请检查网络或确认运行环境是否已解决 CORS 跨域问题。");
+                    } else {
+                         alert(`登录失败: ${error || '未知错误'}`);
+                    }
+                }
+            } catch (err) {
+                // 捕获网络错误，通常是 CORS 跨域问题导致
+                alert(`网络错误: 无法连接 QRZ.com (${err.message}). 请检查网络或确认运行环境是否已解决 CORS 跨域问题。`);
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        function renderLoginStatus(isLoggedIn) {
+            const container = document.getElementById('login-status-container');
+            if (isLoggedIn) {
+                container.innerHTML = `
+                    <div class="flex items-center space-x-2 bg-blue-800 px-3 py-1 rounded-full text-sm">
+                        <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                        <span>QRZ 已连接</span>
+                        <button onclick="logout()" class="ml-2 text-blue-200 hover:text-white"><i class="ph ph-sign-out"></i></button>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `
+                    <button onclick="openSettings()" class="flex items-center space-x-1 text-sm bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded transition">
+                        <span>未登录 QRZ</span>
+                    </button>
+                `;
+            }
+        }
+
+        function logout() {
+            state.sessionKey = null;
+            renderLoginStatus(false);
+            updateToolbar();
+        }
+
+        async function checkOne(idx) {
+            if (!state.sessionKey) {
+                alert("请先登录 QRZ (点击右上角齿轮)");
+                return;
+            }
+
+            const rec = state.records[idx];
+            const callsign = rec.call || rec.call_sign;
+            if (!callsign) return;
+
+            // 设为 checking
+            rec._status = 'checking';
+            updateRowStatus(idx);
+
+            const qrzUrl = `https://xmldata.qrz.com/xml/current/?s=${state.sessionKey};callsign=${callsign}`;
+            
+            // 注意: 已移除 CORS 代理。此直接调用在标准浏览器环境中可能因跨域 (CORS) 策略而失败。
+            try {
+                const res = await fetch(qrzUrl);
+                const text = await res.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(text, "text/xml");
+
+                const foundCall = doc.querySelector('Callsign > call')?.textContent;
+                const fname = doc.querySelector('Callsign > fname')?.textContent;
+                const name = doc.querySelector('Callsign > name')?.textContent;
+
+                if (foundCall) {
+                    rec._status = 'valid';
+                    rec._qrzName = fname || name || '';
+                } else {
+                    rec._status = 'invalid';
+                }
+            } catch (e) {
+                console.error("QRZ 查询失败，可能是 CORS 跨域问题:", e);
+                rec._status = 'unknown';
+            }
+            updateRowStatus(idx);
+        }
+
+        async function checkAll() {
+            if (!state.sessionKey) return alert("请先登录");
+            
+            // 找出所有未检查或未知的记录
+            const indices = state.records
+                .map((r, i) => i)
+                .filter(i => !state.records[i]._status || state.records[i]._status === 'unknown');
+
+            if (indices.length === 0) return alert("没有需要检查的记录");
+            if (!confirm(`即将检查 ${indices.length} 条记录，这需要一些时间，确定吗？`)) return;
+
+            for (const i of indices) {
+                await checkOne(i);
+                // 简单的延迟防止请求过快
+                await new Promise(r => setTimeout(r, 500));
+            }
+        }
+
+        // --- 编辑逻辑 ---
+        function openEdit(idx) {
+            state.editingIndex = idx;
+            const rec = state.records[idx];
+            const container = document.getElementById('edit-form-container');
+            container.innerHTML = '';
+
+            // 遍历属性生成输入框 (跳过内部属性)
+            Object.keys(rec).forEach(key => {
+                if (key.startsWith('_')) return;
+                
+                const div = document.createElement('div');
+                div.innerHTML = `
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">${key}</label>
+                    <input type="text" data-key="${key}" value="${rec[key] || ''}" 
+                        class="edit-input w-full px-3 py-2 border rounded font-mono text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                `;
+                container.appendChild(div);
+            });
+
+            document.getElementById('modal-edit').classList.remove('hidden');
+        }
+
+        function addNewField() {
+            const keyInput = document.getElementById('new-field-key');
+            const valInput = document.getElementById('new-field-val');
+            const key = keyInput.value.toLowerCase().trim();
+            const val = valInput.value;
+
+            if (key && val) {
+                const container = document.getElementById('edit-form-container');
+                const div = document.createElement('div');
+                div.innerHTML = `
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">${key}</label>
+                    <input type="text" data-key="${key}" value="${val}" 
+                        class="edit-input w-full px-3 py-2 border rounded font-mono text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                `;
+                container.appendChild(div);
+                
+                // 清空输入
+                keyInput.value = '';
+                valInput.value = '';
+            }
+        }
+
+        function saveEdit() {
+            if (state.editingIndex === -1) return;
+
+            const inputs = document.querySelectorAll('.edit-input');
+            const newRec = {
+                _status: 'unknown', // 修改后重置状态
+                _qrzName: ''
+            };
+
+            inputs.forEach(input => {
+                newRec[input.dataset.key] = input.value;
+            });
+
+            state.records[state.editingIndex] = newRec;
+            
+            // 重新渲染该行
+            const row = document.getElementById(`row-${state.editingIndex}`);
+            // 这里最简单的就是刷新整个表，或者我们只更新该行样式为 unknown
+            updateRowStatus(state.editingIndex);
+            
+            // 为了更新数据内容，最好还是重新生成一下该行的 HTML，或者我们可以手动更新单元格
+            // 为简单起见，调用 renderTable() (虽然性能略低但逻辑简单安全)
+            renderTable();
+
+            closeEdit();
+        }
+
+        function closeEdit() {
+            document.getElementById('modal-edit').classList.add('hidden');
+            state.editingIndex = -1;
+        }
+
+        // --- 导出逻辑 ---
+        function exportAdif() {
+            let output = state.adifHeader;
+            if (!output.toUpperCase().includes('<EOH>') && output.length > 0) {
+                output += '\n<EOH>\n\n';
+            } else if (output.length === 0) {
+                output = 'ADIF Export generated by Web Editor\n<EOH>\n\n';
+            }
+
+            state.records.forEach(rec => {
+                Object.keys(rec).forEach(key => {
+                    if (key.startsWith('_')) return; // 跳过内部状态
+                    const val = rec[key] || '';
+                    const len = new Blob([val]).size; // 正确计算 UTF-8 字节长度
+                    output += `<${key.toUpperCase()}:${len}>${val} `;
+                });
+                output += '<EOR>\n';
+            });
+
+            const blob = new Blob([output], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `edited_${state.filename}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // --- UI 辅助 ---
+        function openSettings() { document.getElementById('modal-settings').classList.remove('hidden'); }
+        function closeSettings() { document.getElementById('modal-settings').classList.add('hidden'); }
+        function renderUI() {
+            updateToolbar();
+        }
+
+    </script>
 </body>
 </html>
